@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.Python
+build/
+dist/
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Tests / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# PyTorch artifacts
+*.pt
+*.pth
+*.safetensors
+checkpoints/
+
+# W&B
+wandb/
+
+# PIE dataset (users point PIE_PATH at their copy)
+PIE_dataset/
+!PIE_dataset/.gitkeep
+
+# Feature caches (can be many GB)
+data/features/
+data/pie/**/features*/
+
+# Jupyter
+.ipynb_checkpoints/

@@ -116,7 +116,10 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
-_(nothing yet — first commit is docs only)_
+### 2026-04-16 — Phase 0 environment surprises
+- **Env had no PyTorch installed.** `pip install torch pytest pyyaml` pulled `torch 2.11.0+cu130` (CPU build, `cuda=False`). Acceptable for Phase 0/1/2 validation; we'll need a real GPU for Phase 4 parity and full training.
+- **NumPy missing too.** After installing torch, a plain `import torch` emitted "Failed to initialize NumPy"; had to `pip install numpy`. Requirements file already lists numpy, but users may skip `pip install -r requirements.txt`. Docs should say so loudly.
+- **pytest collected the `tests/` dir fine** once `pyproject.toml` set `testpaths = ["tests"]`. `23 passed in 3.34s`.
 
 ---
 

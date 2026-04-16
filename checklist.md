@@ -9,12 +9,12 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Phase 0 — Scaffolding & housekeeping
-- [ ] 0.1 Move TF files into `legacy_tf/` (+ `README_LEGACY.md`)
-- [ ] 0.2 Create `pie_pytorch/` package skeleton
-- [ ] 0.3 Rewrite `requirements.txt` for PyTorch stack
-- [ ] 0.4 Add `requirements-dev.txt`
-- [ ] 0.5 Update `.gitignore` (`wandb/`, `*.pt`, checkpoints, feature caches)
-- [ ] **Validation 0**: torch imports, empty `pytest` run, `import pie_pytorch` works
+- [x] 0.1 Move TF files into `legacy_tf/` (+ `README_LEGACY.md`)
+- [x] 0.2 Create `pie_pytorch/` package skeleton
+- [x] 0.3 Rewrite `requirements.txt` for PyTorch stack
+- [x] 0.4 Add `requirements-dev.txt`
+- [x] 0.5 Update `.gitignore` (`wandb/`, `*.pt`, checkpoints, feature caches)
+- [x] **Validation 0**: `torch 2.11.0+cu130` imports; `import pie_pytorch` works; `pytest tests/` → 23/23 passed
 
 ## Phase 1 — Data layer
 - [ ] 1.1 Vendor `pie_data.py` (from aras62/PIE) into `pie_pytorch/data/`
@@ -62,7 +62,8 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Planning & documentation (this commit): `plan.md`, `checklist.md`, `notepad.md`, `memory.md` drafted. Branch `claude/tensorflow-to-pytorch-conversion-0SlwI`.
+- Phase 0 complete. Starting Phase 1 (data layer) next.
 
 ## Next up
-- Phase 0 scaffolding on the feature branch.
+- Phase 1.1 — vendor `pie_data.py` from `github.com/aras62/PIE`.
+- Phase 1.2 — port `utils.py` helpers into `pie_pytorch/data/transforms.py` with pixel-level parity tests.
