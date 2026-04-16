@@ -16,7 +16,10 @@ exclude = ["legacy_tf*", "tests*", "notebooks*", "scripts*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-ra --strict-markers"
+addopts = "-ra --strict-markers -m 'not slow'"
+markers = [
+    "slow: tests that download large weights or run the full VGG stack",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]

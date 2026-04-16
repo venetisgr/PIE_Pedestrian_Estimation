@@ -17,12 +17,12 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 - [x] **Validation 0**: `torch 2.11.0+cu130` imports; `import pie_pytorch` works; `pytest tests/` → 23/23 passed
 
 ## Phase 1 — Data layer
-- [ ] 1.1 Vendor `pie_data.py` (from aras62/PIE) into `pie_pytorch/data/`
-- [ ] 1.2 Port `utils.py` → `pie_pytorch/data/transforms.py`
-- [ ] 1.3 `PIEIntentDataset`, `PIETrajectoryDataset`, `PIESpeedDataset`
-- [ ] 1.4 Subset selector (`fraction`, `max_tracks`, `set_ids`)
-- [ ] 1.5 VGG16 feature extractor + disk cache
-- [ ] **Validation 1**: shape tests vs TF, pixel-level parity on `img_pad`, VGG out = `(T,7,7,512)`, end-to-end DataLoader smoke
+- [x] 1.1 Vendor `pie_data.py` (from aras62/PIE `utilities/pie_data.py`) into `pie_pytorch/data/pie_data.py` (1355 lines, MIT)
+- [x] 1.2 Port `utils.py` → `pie_pytorch/data/transforms.py` + `sequences.py`
+- [x] 1.3 `IntentRawDataset`, `TrajectoryDataset`, `SpeedDataset`
+- [x] 1.4 `SubsetConfig` (`fraction`, `max_tracks`, `set_ids`, seeded)
+- [x] 1.5 VGG16 feature extractor + per-video shard cache (`VideoShardCache`)
+- [x] **Validation 1**: 78 passed, 1 deselected (slow VGG-weights test) — transforms parity (29), subset (10), datasets (8), features (8), scaffold (23). NumPy-writability warning fixed. Annotations download path TBD.
 
 ## Phase 2 — Model layer
 - [ ] 2.1 `ConvLSTM2DCell` / `ConvLSTM2D` (Keras-equivalent defaults)
@@ -62,8 +62,8 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Phase 0 complete. Starting Phase 1 (data layer) next.
+- Phase 0 + Phase 1 complete. Starting Phase 2 (models) next.
 
 ## Next up
-- Phase 1.1 — vendor `pie_data.py` from `github.com/aras62/PIE`.
-- Phase 1.2 — port `utils.py` helpers into `pie_pytorch/data/transforms.py` with pixel-level parity tests.
+- Phase 2.1 — custom `ConvLSTM2D` matching Keras gate ordering and init.
+- Decide on annotations fetch: user-owned vs `scripts/download_annotations.sh`.

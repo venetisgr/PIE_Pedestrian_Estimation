@@ -116,6 +116,40 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-16 — Phase 1 loose ends
+- **Annotations missing from repo.** `PIE_dataset/` has only `.gitkeep`. The
+  PIE XML annotations live at `github.com/aras62/PIE/tree/master/annotations*`.
+  Two paths forward (option 1 is default; option 2 in Phase 1.6 if requested):
+    1. User downloads from aras62/PIE and points `$PIE_PATH` there.
+    2. Ship `scripts/download_annotations.sh` that clones aras62/PIE and
+       copies the three `annotations*` dirs into `$PIE_PATH`.
+- **`pie_data.py` actual path.** Both `master` and `main` 404 on the repo root.
+  Real location is `utilities/pie_data.py`. Vendored with attribution header.
+- **Dataset size clarification.** Videos-only download is ~74 GB (6 sets);
+  the 1.1 TB figure is for all frames extracted. Colab: download one set.
+- **Phase 0 guard test was too loose.** Matched the string "keras" inside
+  docstrings. Rewrote to walk each module's globals and only check
+  `isinstance(v, ModuleType)` against `{tensorflow, keras}` top-level names.
+  Retroactive: this would not have flagged the issue if the guard also
+  triggered on `sys.modules` entries from transitive imports; it
+  currently checks only *direct* imports of the forbidden top-level
+  modules, which is what we actually care about.
+- **Trajectory normalization order.** Legacy code windows FIRST, then
+  does `w[1:] - w[0]` on bbox (and trims other fields to `w[1:]`). I
+  originally did normalize-first-window-second which produced 46-step
+  targets instead of 45. Fixed; tests now green.
+
+### 2026-04-16 — Phase 1 test-fixture bug (self-caught, not prod code)
+- `test_subset.py::test_fraction_different_seeds_differ` failed at first
+  run. Cause: synthetic data generator reused the *same* per-track image
+  paths (only frame index varied), so sampling different tracks still
+  produced identical `image[0][0]` entries. Production `SubsetConfig` was
+  correct; test was too weak to notice. Fixed by embedding the track
+  index in the video dir (`video_{t:04d}`). All 10 subset tests pass now.
+- Lesson for later tests: when asserting "these two outputs differ",
+  make sure the synthetic fixture actually *can* differ on the field you're
+  comparing.
+
 ### 2026-04-16 — Phase 0 environment surprises
 - **Env had no PyTorch installed.** `pip install torch pytest pyyaml` pulled `torch 2.11.0+cu130` (CPU build, `cuda=False`). Acceptable for Phase 0/1/2 validation; we'll need a real GPU for Phase 4 parity and full training.
 - **NumPy missing too.** After installing torch, a plain `import torch` emitted "Failed to initialize NumPy"; had to `pip install numpy`. Requirements file already lists numpy, but users may skip `pip install -r requirements.txt`. Docs should say so loudly.

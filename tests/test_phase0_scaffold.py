@@ -47,16 +47,25 @@ def test_subpackage_imports(subpkg):
 
 
 def test_no_tensorflow_or_keras_in_pie_pytorch():
-    """PyTorch package must not import TF/Keras anywhere."""
+    """PyTorch package must not *import* TF/Keras anywhere.
+
+    Looks at the actual module objects bound in each submodule's globals
+    (not docstrings - mentioning Keras in prose is fine for context).
+    """
+    import types
+
     import pie_pytorch
 
-    forbidden = ("tensorflow", "keras")
+    forbidden_tops = {"tensorflow", "keras"}
     for _, name, _ in pkgutil.walk_packages(pie_pytorch.__path__, prefix="pie_pytorch."):
         mod = importlib.import_module(name)
-        for fb in forbidden:
-            assert fb not in str(getattr(mod, "__dict__", {})), (
-                f"{name} references forbidden module {fb}"
-            )
+        for attr_name, attr_val in vars(mod).items():
+            if isinstance(attr_val, types.ModuleType):
+                top = attr_val.__name__.split(".")[0]
+                assert top not in forbidden_tops, (
+                    f"{name} imports forbidden module {attr_val.__name__} "
+                    f"as {attr_name!r}"
+                )
 
 
 def test_torch_available():
