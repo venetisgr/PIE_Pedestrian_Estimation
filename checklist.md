@@ -62,8 +62,17 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Phase 0 + Phase 1 complete. Starting Phase 2 (models) next.
+- Phase 0 + Phase 1 complete. Downloader shipped (videos + annotations).
+  Starting Phase 2 (models) next.
 
 ## Next up
 - Phase 2.1 — custom `ConvLSTM2D` matching Keras gate ordering and init.
-- Decide on annotations fetch: user-owned vs `scripts/download_annotations.sh`.
+
+## Out-of-phase (Phase 1.6) — Asset downloader (2026-04-16)
+- [x] `pie_pytorch/data/downloader.py` with video + annotation sub-commands.
+      Videos: 53 files / 6 sets hard-coded inventory, Range-resumable,
+      atomic rename, `--workers` parallel, `--dry-run`, skip-if-complete.
+      Annotations: pull aras62/PIE master tarball and extract only the
+      three `annotations*` dirs, idempotent.
+- [x] 15 new tests (local HTTP server with Range support + in-memory
+      tarball). **93 passed, 1 deselected** total suite.
