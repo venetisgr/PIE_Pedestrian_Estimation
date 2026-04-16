@@ -116,6 +116,32 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-16 — Annotations layout surprise (self-caught via live run)
+- Initial `download_annotations` assumed the tarball had three top-level
+  dirs (`annotations/`, `annotations_attributes/`, `annotations_vehicle/`)
+  each containing its own `{dir}.zip`. That is **wrong**. The real
+  upstream repo only has one top-level `annotations/` dir and stashes
+  **all three** zips inside it along with README + shell scripts:
+      PIE-master/annotations/annotations.zip
+      PIE-master/annotations/annotations_attributes.zip
+      PIE-master/annotations/annotations_vehicle.zip
+- Caught only by running the CLI against the real upstream (unit tests
+  with my fake tarball happily passed). Took ~2 iterations to nail down
+  the true layout via `WebFetch` of the GitHub tree.
+- Rewrote the logic: pull the three zips into a `_annot_staging/` dir,
+  unzip each into `dest/` (creates the three expected output dirs as
+  zip roots), then delete the staging dir + zips (or move to
+  `_annotation_zips/` when `--keep-zips`).
+- Updated the pytest fixture `_make_fake_pie_tarball()` to mirror the
+  real layout so the next regression of this shape fails CI, not
+  production.
+- Added `docs/colab_checklist.md` with a step-by-step Colab playbook.
+- Verified end-to-end: `PIE.get_annotated_frame_numbers('set05')`
+  returns real frame ranges after download.
+- Lesson: for anything that touches a remote system I can't fully mock,
+  do at least one real-network integration run before declaring it
+  done. Tests alone are not enough.
+
 ### 2026-04-16 — Phase 1 loose ends
 - **Annotations missing from repo.** `PIE_dataset/` has only `.gitkeep`. The
   PIE XML annotations live at `github.com/aras62/PIE/tree/master/annotations*`.

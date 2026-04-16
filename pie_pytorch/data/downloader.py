@@ -41,6 +41,7 @@ import sys
 import tarfile
 import urllib.error
 import urllib.request
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -50,7 +51,13 @@ BASE_URL = "https://data.nvision2.eecs.yorku.ca/PIE_dataset/PIE_clips"
 ANNOTATIONS_TARBALL_URL = (
     "https://github.com/aras62/PIE/archive/refs/heads/master.tar.gz"
 )
+# Output directory names (after extraction) that `pie_data.PIE` expects.
 ANNOTATION_DIRS = ("annotations", "annotations_attributes", "annotations_vehicle")
+# Upstream repo layout: all three zips sit in a single `annotations/`
+# directory at the repo root. Each zip expands to a top-level dir whose
+# name matches the zip basename (see ANNOTATION_DIRS above).
+ANNOTATION_ZIPS = tuple(f"{d}.zip" for d in ANNOTATION_DIRS)
+TARBALL_ZIP_PREFIX = "annotations"  # path inside 'PIE-master/' where the zips live
 
 # Full video inventory (verified 2026-04-16 via HTML index of each set dir).
 INVENTORY: dict[str, list[str]] = {
@@ -318,26 +325,53 @@ def download_annotations(
     url: str = ANNOTATIONS_TARBALL_URL,
     overwrite: bool = False,
     show_progress: bool = True,
+    keep_zips: bool = False,
 ) -> list[Path]:
-    """Download aras62/PIE tarball and extract only the annotation dirs to ``dest``.
+    """Download aras62/PIE tarball and produce the expected annotation layout.
 
-    Result layout:
+    Upstream repo layout (tarball): all three annotation zips sit inside
+    a single top-level ``annotations/`` directory::
+
+        PIE-master/annotations/annotations.zip
+        PIE-master/annotations/annotations_attributes.zip
+        PIE-master/annotations/annotations_vehicle.zip
+        PIE-master/annotations/README.md
+        PIE-master/annotations/download_clips.sh
+        PIE-master/annotations/split_clips_to_frames.sh
+
+    Each zip expands to a top-level dir matching its basename
+    (``annotations/setXX/...``, ``annotations_attributes/setXX/...``,
+    ``annotations_vehicle/setXX/...``).
+
+    Final layout this function produces (what ``pie_data.PIE`` expects)::
+
         {dest}/annotations/setXX/*.xml
         {dest}/annotations_attributes/setXX/*.xml
         {dest}/annotations_vehicle/setXX/*.xml
 
-    Idempotent: if ``{dest}/annotations/`` already exists and ``overwrite`` is
-    False, this function is a no-op and returns ``[]``.
+    Steps:
+        1. Fetch the repo tarball.
+        2. Pull just the three ``annotations/*.zip`` members out to a
+           temp spot under ``{dest}``.
+        3. Unzip each into ``{dest}/`` so the three top-level dirs appear.
+        4. Remove the intermediate zips unless ``keep_zips=True``.
+
+    Idempotent: if every annotation dir already has at least one
+    ``setXX`` subdir and ``overwrite`` is False, this function is a
+    no-op and returns [].
     """
     dest_root = Path(dest).expanduser().resolve()
     dest_root.mkdir(parents=True, exist_ok=True)
 
-    existing = [d for d in ANNOTATION_DIRS if (dest_root / d).is_dir()]
-    if existing and not overwrite:
+    already_unzipped = all(
+        (dest_root / d).is_dir() and any((dest_root / d).glob("set*"))
+        for d in ANNOTATION_DIRS
+    )
+    if already_unzipped and not overwrite:
         if show_progress:
             print(
-                f"[skip] annotations already present under {dest_root} "
-                f"({', '.join(existing)}). Pass overwrite=True to replace."
+                f"[skip] annotations already present under {dest_root}. "
+                "Pass overwrite=True to replace."
             )
         return []
 
@@ -347,44 +381,70 @@ def download_annotations(
         desc="annotations.tar.gz",
     )
 
-    extracted: list[Path] = []
+    # --- Step 1: pull just the three zips out of the tarball ----------
+    staging = dest_root / "_annot_staging"
+    staging.mkdir(exist_ok=True)
+    zip_paths: dict[str, Path] = {}
     with tarfile.open(fileobj=io.BytesIO(raw), mode="r:gz") as tar:
         for member in tar.getmembers():
-            # Tarball layout: 'PIE-master/annotations/...'
-            name = member.name
-            parts = name.split("/", 2)
-            if len(parts) < 2:
-                continue
-            top_rel = parts[1]  # 'annotations' or similar
-            if top_rel not in ANNOTATION_DIRS:
-                continue
-            # Re-root: drop the 'PIE-master/' prefix.
-            target_rel = "/".join(parts[1:])
-            target = dest_root / target_rel
-            if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
-                continue
             if not member.isfile():
                 continue
-            target.parent.mkdir(parents=True, exist_ok=True)
-            fobj = tar.extractfile(member)
-            if fobj is None:
-                continue
-            # Atomic-ish write via a temp file
-            tmp = target.with_suffix(target.suffix + ".part")
-            with open(tmp, "wb") as out:
-                out.write(fobj.read())
-            os.replace(tmp, target)
-            extracted.append(target)
+            parts = member.name.split("/")
+            # Expect "PIE-master/annotations/{zip_name}"
+            if (
+                len(parts) >= 3
+                and parts[1] == TARBALL_ZIP_PREFIX
+                and parts[2] in ANNOTATION_ZIPS
+            ):
+                target = staging / parts[2]
+                fobj = tar.extractfile(member)
+                if fobj is None:
+                    continue
+                target.write_bytes(fobj.read())
+                zip_paths[parts[2]] = target
 
-    if not extracted:
+    missing = [z for z in ANNOTATION_ZIPS if z not in zip_paths]
+    if missing:
+        # Clean up partial staging before reporting.
+        for p in zip_paths.values():
+            p.unlink(missing_ok=True)
+        staging.rmdir()
         raise RuntimeError(
-            f"no annotation files found in tarball at {url}. "
-            "Upstream repo layout may have changed."
+            f"expected annotation zips not found in tarball at {url}: "
+            f"{missing}. Upstream repo layout may have changed."
         )
+
+    # --- Step 2: unzip each into dest_root ----------------------------
+    unzipped: list[Path] = []
+    for zname, zpath in zip_paths.items():
+        with zipfile.ZipFile(zpath) as zf:
+            for info in zf.infolist():
+                target = dest_root / info.filename
+                if info.is_dir():
+                    target.mkdir(parents=True, exist_ok=True)
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with zf.open(info) as src, open(target, "wb") as out:
+                    out.write(src.read())
+                unzipped.append(target)
+
+    # --- Step 3: cleanup ----------------------------------------------
+    if keep_zips:
+        kept_dir = dest_root / "_annotation_zips"
+        kept_dir.mkdir(exist_ok=True)
+        for p in zip_paths.values():
+            os.replace(p, kept_dir / p.name)
+    else:
+        for p in zip_paths.values():
+            p.unlink(missing_ok=True)
+    try:
+        staging.rmdir()
+    except OSError:
+        pass  # non-empty for some reason; leave it
+
     if show_progress:
-        print(f"[ok] extracted {len(extracted)} annotation files to {dest_root}")
-    return extracted
+        print(f"[ok] extracted {len(unzipped)} annotation files to {dest_root}")
+    return unzipped
 
 
 # ---------------------------------------------------------------------------
@@ -436,6 +496,11 @@ def _add_annotations_parser(sub: argparse._SubParsersAction) -> None:
         default=ANNOTATIONS_TARBALL_URL,
         help=f"Tarball URL (default: {ANNOTATIONS_TARBALL_URL}).",
     )
+    p.add_argument(
+        "--keep-zips",
+        action="store_true",
+        help="Keep the inner {dir}.zip archives alongside the extracted XML.",
+    )
     p.add_argument("--quiet", action="store_true", help="Suppress progress output.")
     p.set_defaults(_handler=_run_annotations)
 
@@ -460,6 +525,7 @@ def _run_annotations(args: argparse.Namespace) -> int:
         url=args.url,
         overwrite=args.overwrite,
         show_progress=not args.quiet,
+        keep_zips=args.keep_zips,
     )
     return 0
 

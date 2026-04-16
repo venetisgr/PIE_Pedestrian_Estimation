@@ -72,7 +72,12 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 - [x] `pie_pytorch/data/downloader.py` with video + annotation sub-commands.
       Videos: 53 files / 6 sets hard-coded inventory, Range-resumable,
       atomic rename, `--workers` parallel, `--dry-run`, skip-if-complete.
-      Annotations: pull aras62/PIE master tarball and extract only the
-      three `annotations*` dirs, idempotent.
-- [x] 15 new tests (local HTTP server with Range support + in-memory
-      tarball). **93 passed, 1 deselected** total suite.
+      Annotations: pull aras62/PIE master tarball, extract the 3 zips
+      from inside `annotations/`, unzip each to the expected layout,
+      then clean up (unless `--keep-zips`). Idempotent.
+- [x] 17 tests (local HTTP server with Range support + in-memory
+      tarball). **95 passed, 1 deselected** total suite.
+- [x] **Live validated**: downloaded set05 (~2.1 GB) and all annotations
+      to a sandbox, loaded `PIE.get_annotated_frame_numbers('set05')`
+      via the vendored parser — returned real frame ranges.
+- [x] `docs/colab_checklist.md`: top-to-bottom Colab playbook.

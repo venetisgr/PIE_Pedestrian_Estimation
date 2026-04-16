@@ -200,18 +200,46 @@ def test_download_videos_requires_selection(tmp_path):
 # ---------------------------------------------------------------------------
 # Annotations downloader
 # ---------------------------------------------------------------------------
+def _build_annotation_zip(top: str, files: dict[str, bytes]) -> bytes:
+    """Build a zip whose entries are rooted at ``top/setXX/...`` like upstream."""
+    import zipfile as _zf
+
+    buf = io.BytesIO()
+    with _zf.ZipFile(buf, mode="w", compression=_zf.ZIP_DEFLATED) as zf:
+        for rel, data in files.items():
+            zf.writestr(f"{top}/{rel}", data)
+    return buf.getvalue()
+
+
 def _make_fake_pie_tarball() -> bytes:
-    """Build an in-memory tar.gz shaped like aras62/PIE."""
+    """Build an in-memory tar.gz shaped like aras62/PIE (zips-inside-dirs)."""
+    z_ann = _build_annotation_zip(
+        "annotations",
+        {
+            "set01/video_0001_annt.xml": b"<root>A</root>",
+            "set02/video_0001_annt.xml": b"<root>B</root>",
+        },
+    )
+    z_attr = _build_annotation_zip(
+        "annotations_attributes",
+        {"set01/video_0001_attributes.xml": b"<r>C</r>"},
+    )
+    z_veh = _build_annotation_zip(
+        "annotations_vehicle",
+        {"set01/video_0001_obd.xml": b"<r>D</r>"},
+    )
+
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-        # Some ignored files + the three annotation dirs.
+        # Upstream: all three zips live inside a single 'annotations/'.
         contents = {
             "PIE-master/README.md": b"# PIE",
-            "PIE-master/annotations/set01/video_0001_annt.xml": b"<root>A</root>",
-            "PIE-master/annotations/set02/video_0001_annt.xml": b"<root>B</root>",
-            "PIE-master/annotations_attributes/set01/video_0001_attributes.xml": b"<r>C</r>",
-            "PIE-master/annotations_vehicle/set01/video_0001_obd.xml": b"<r>D</r>",
             "PIE-master/utilities/pie_data.py": b"# code",
+            "PIE-master/annotations/README.md": b"inner readme",
+            "PIE-master/annotations/download_clips.sh": b"#!/bin/sh\n",
+            "PIE-master/annotations/annotations.zip": z_ann,
+            "PIE-master/annotations/annotations_attributes.zip": z_attr,
+            "PIE-master/annotations/annotations_vehicle.zip": z_veh,
         }
         for name, data in contents.items():
             ti = tarfile.TarInfo(name=name)
@@ -225,23 +253,69 @@ def test_download_annotations_extracts_only_annotation_dirs(tmp_path, http_root)
     tarball = _make_fake_pie_tarball()
     (root / "PIE.tar.gz").write_bytes(tarball)
 
-    extracted = dl.download_annotations(
+    dl.download_annotations(
         dest=tmp_path,
         url=f"{base}/PIE.tar.gz",
         show_progress=False,
     )
-    assert len(extracted) == 4
-    assert (tmp_path / "annotations" / "set01" / "video_0001_annt.xml").exists()
+    # XML files land under {dest}/{dir}/setXX/... after each zip is unpacked.
+    assert (tmp_path / "annotations" / "set01" / "video_0001_annt.xml").read_bytes() == b"<root>A</root>"
     assert (tmp_path / "annotations" / "set02" / "video_0001_annt.xml").exists()
     assert (tmp_path / "annotations_attributes" / "set01" / "video_0001_attributes.xml").exists()
     assert (tmp_path / "annotations_vehicle" / "set01" / "video_0001_obd.xml").exists()
-    # Non-annotation files must NOT be extracted
+    # Non-zip tarball content (README, shell scripts, other dirs) must NOT be extracted.
     assert not (tmp_path / "README.md").exists()
     assert not (tmp_path / "utilities").exists()
+    assert not (tmp_path / "annotations" / "README.md").exists()
+    assert not (tmp_path / "annotations" / "download_clips.sh").exists()
+    # Staging dir is removed and zips not kept by default.
+    assert not (tmp_path / "_annot_staging").exists()
+    assert not (tmp_path / "_annotation_zips").exists()
+
+
+def test_download_annotations_keep_zips(tmp_path, http_root):
+    root, base = http_root
+    (root / "PIE.tar.gz").write_bytes(_make_fake_pie_tarball())
+    dl.download_annotations(
+        dest=tmp_path,
+        url=f"{base}/PIE.tar.gz",
+        show_progress=False,
+        keep_zips=True,
+    )
+    # Preserved zips land under a single _annotation_zips/ dir.
+    kept = tmp_path / "_annotation_zips"
+    assert (kept / "annotations.zip").exists()
+    assert (kept / "annotations_attributes.zip").exists()
+    assert (kept / "annotations_vehicle.zip").exists()
+
+
+def test_download_annotations_raises_when_inner_zip_missing(tmp_path, http_root):
+    """Regression: upstream tarball lacks one of the expected zips -> clear error."""
+    root, base = http_root
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        # annotations/ exists but only has README + one out-of-three zip
+        for name, data in {
+            "PIE-master/annotations/README.md": b"readme",
+            "PIE-master/annotations/annotations.zip": b"fake",
+        }.items():
+            ti = tarfile.TarInfo(name=name)
+            ti.size = len(data)
+            tar.addfile(ti, io.BytesIO(data))
+    (root / "noinner.tar.gz").write_bytes(buf.getvalue())
+
+    with pytest.raises(RuntimeError, match="expected annotation zips not found"):
+        dl.download_annotations(
+            dest=tmp_path,
+            url=f"{base}/noinner.tar.gz",
+            show_progress=False,
+        )
 
 
 def test_download_annotations_skips_if_present(tmp_path, capsys):
-    (tmp_path / "annotations").mkdir()
+    # Create the full expected layout so the idempotency guard triggers.
+    for d in ("annotations", "annotations_attributes", "annotations_vehicle"):
+        (tmp_path / d / "set01").mkdir(parents=True)
     # URL is unreachable, but the skip happens before any network call.
     out = dl.download_annotations(
         dest=tmp_path, url="http://127.0.0.1:1/never", show_progress=True
@@ -252,7 +326,7 @@ def test_download_annotations_skips_if_present(tmp_path, capsys):
 
 def test_download_annotations_raises_on_empty_tarball(tmp_path, http_root):
     root, base = http_root
-    # Tarball with no annotation dirs
+    # Tarball with no annotation content at all
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w:gz") as tar:
         ti = tarfile.TarInfo(name="PIE-master/other.txt")
@@ -260,7 +334,7 @@ def test_download_annotations_raises_on_empty_tarball(tmp_path, http_root):
         tar.addfile(ti, io.BytesIO(b"hi\n"))
     (root / "empty.tar.gz").write_bytes(buf.getvalue())
 
-    with pytest.raises(RuntimeError, match="no annotation files"):
+    with pytest.raises(RuntimeError, match="expected annotation zips not found"):
         dl.download_annotations(
             dest=tmp_path,
             url=f"{base}/empty.tar.gz",
