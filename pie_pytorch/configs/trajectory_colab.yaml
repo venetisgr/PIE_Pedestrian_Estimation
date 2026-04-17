@@ -15,7 +15,7 @@ data:
   data_opts:
     fstride: 1
     sample_type: all
-    height_rng: [0, Infinity]
+    height_rng: [0, .inf]
     squarify_ratio: 0
     data_split_type: default
     seq_type: trajectory

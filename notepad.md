@@ -116,6 +116,22 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — YAML `Infinity` footgun (caught mid-Colab-run)
+- All three Colab configs had `height_rng: [0, Infinity]`. YAML does
+  NOT treat `Infinity` as special; it parses as the **string**
+  `'Infinity'`. `pie_data._get_trajectories` then does
+  `height_rng[1] < float('inf')` which raises
+  `TypeError: '<' not supported between instances of 'str' and 'float'`.
+- Fix: use `.inf` (YAML 1.1 spec for float infinity). Verified all three
+  configs now parse `height_rng[1]` as `math.inf`.
+- Added `tests/test_cli_and_overfit.py::test_packaged_configs_load_cleanly`
+  — parameterized over all three configs, asserts `height_rng[1]` is a
+  real float and `isinf`. This catches the same class of typo if someone
+  adds a new config.
+- Lesson: config smoke-loads deserve their own unit tests. Unit-tested
+  override plumbing isn't enough when the actual shipped YAMLs have
+  string↔numeric bugs.
+
 ### 2026-04-17 — Colab live validation (user-run)
 - Full pipeline validated on a Colab T4: 95 pytest passes, annotations
   downloaded + parsed, set05 videos downloaded (~2 GB), frames

@@ -20,6 +20,29 @@ from pie_pytorch.cli import train as train_cli
 
 
 # ---------------------------------------------------------------------------
+# Packaged configs: smoke-load and invariant checks
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "cfg_name",
+    ["intent_colab.yaml", "trajectory_colab.yaml", "speed_colab.yaml"],
+)
+def test_packaged_configs_load_cleanly(cfg_name, monkeypatch):
+    """Catch YAML typos (e.g. `Infinity` as a string instead of `.inf`)."""
+    import math
+    from pathlib import Path
+
+    monkeypatch.setenv("PIE_PATH", "/tmp/__fake_pie_path__")
+    cfg_path = Path(__file__).resolve().parents[1] / "pie_pytorch" / "configs" / cfg_name
+    cfg = train_cli.load_config(str(cfg_path))
+    # height_rng[1] must be a real float, not a string like 'Infinity'.
+    hr = cfg["data"]["data_opts"]["height_rng"]
+    assert isinstance(hr, list) and len(hr) == 2
+    assert isinstance(hr[1], float) and math.isinf(hr[1]), (
+        f"height_rng[1] in {cfg_name} must parse as +inf; got {hr[1]!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Config loader
 # ---------------------------------------------------------------------------
 def test_load_config_expands_env(tmp_path, monkeypatch):
