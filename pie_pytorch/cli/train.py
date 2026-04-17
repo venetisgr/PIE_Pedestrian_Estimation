@@ -185,13 +185,19 @@ def _build_intent(cfg: dict) -> tuple[DataLoader, DataLoader, torch.nn.Module, A
     model = IntentConvLSTMEncDec(IntentModelConfig(**cfg["model"]))
 
     def forward_fn(m, batch):
-        pred = m(batch["enc_input"], batch["dec_input"]).squeeze(-1)  # (B,)
-        return pred, batch["label"]
+        # Model emits raw logits; BCEWithLogitsLoss is AMP-safe.
+        logits = m(batch["enc_input"], batch["dec_input"]).squeeze(-1)  # (B,)
+        return logits, batch["label"]
 
     def loss_fn(pred, tgt, batch):
-        return torch.nn.functional.binary_cross_entropy(pred, tgt)
+        return torch.nn.functional.binary_cross_entropy_with_logits(pred, tgt)
 
-    metrics = {"acc": accuracy, "f1": f1}
+    def _sigmoid_wrap(fn):
+        def wrapped(y_pred, y_true):
+            return fn(torch.sigmoid(y_pred), y_true)
+        return wrapped
+
+    metrics = {"acc": _sigmoid_wrap(accuracy), "f1": _sigmoid_wrap(f1)}
     return train_loader, val_loader, model, forward_fn, loss_fn, metrics
 
 

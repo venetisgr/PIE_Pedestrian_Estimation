@@ -19,14 +19,17 @@ from pie_pytorch.models.trajectory import (
 # ---------------------------------------------------------------------------
 # IntentConvLSTMEncDec
 # ---------------------------------------------------------------------------
-def test_intent_forward_shape_and_range():
+def test_intent_forward_shape_and_logits():
+    """Model returns raw logits (no sigmoid). Shape is (B, 1)."""
     model = IntentConvLSTMEncDec()
     B, T = 2, 15
     enc = torch.randn(B, T, 512, 7, 7)
     dec = torch.randn(B, T, 4)
     y = model(enc, dec)
     assert y.shape == (B, 1)
-    assert torch.all(y >= 0.0) and torch.all(y <= 1.0)  # sigmoid
+    # Logits can span the whole real line; apply sigmoid for P(crossing).
+    probs = torch.sigmoid(y)
+    assert torch.all(probs >= 0.0) and torch.all(probs <= 1.0)
 
 
 def test_intent_batch_invariance():

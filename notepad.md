@@ -116,6 +116,26 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — BCELoss + AMP is unsafe (caught mid-Colab-run)
+- Intent training on Colab (T4, AMP auto-on for CUDA) crashed in the
+  first step with:
+      RuntimeError: torch.nn.functional.binary_cross_entropy and
+      torch.nn.BCELoss are unsafe to autocast.
+- Standard fix: switch to `binary_cross_entropy_with_logits` and remove
+  the sigmoid from the model head. Logits-out is the PyTorch convention
+  anyway.
+- Changes:
+    - `IntentConvLSTMEncDec.forward` returns raw logits (no sigmoid).
+    - `cli/train.py::_build_intent` uses BCEWithLogitsLoss; metrics
+      (accuracy, f1) are wrapped in a `_sigmoid_wrap` so they still
+      see probabilities.
+    - Intent docstring updated to say "apply torch.sigmoid(out) for
+      P(crossing)".
+    - `test_intent_forward_shape_and_range` -> `_shape_and_logits`;
+      asserts `sigmoid(logits)` is in [0, 1] instead of `logits` itself.
+- Lesson: AMP compatibility is a cross-cutting concern. Any loss that
+  needs the sigmoid/softmax fused in should say so up front.
+
 ### 2026-04-17 — VGG extractor "auto" device + CPU-bound VGG net (caught mid-Colab-run)
 - After fixing the dataclass field name, the intent run on Colab
   crashed again in `IntentFeatureDataset.__getitem__`:

@@ -52,7 +52,10 @@ class IntentConvLSTMEncDec(nn.Module):
     Returns
     -------
     Tensor, shape ``(B, 1)``
-        Crossing probability in [0, 1].
+        **Logits** for the positive (crossing) class. Apply
+        ``torch.sigmoid`` to get a probability in [0, 1]. We keep the
+        model sigmoid-free so it plays nicely with
+        ``BCEWithLogitsLoss`` + AMP; see notepad.md D10.
     """
 
     def __init__(self, cfg: IntentModelConfig | None = None):
@@ -99,4 +102,4 @@ class IntentConvLSTMEncDec(nn.Module):
         dec_in = torch.cat([enc_rep, decoder_input], dim=-1)  # (B, T, F*H*W + 4)
 
         dec_out = self.decoder(dec_in)             # (B, hidden)
-        return torch.sigmoid(self.head(dec_out))   # (B, output_size)
+        return self.head(dec_out)                  # (B, output_size) logits
