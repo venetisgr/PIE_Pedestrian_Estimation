@@ -131,3 +131,15 @@ def test_extractor_forward_shape():
     out = ext(x)
     assert out.shape == (1, 512, 7, 7)
     assert ext.feature_shape == (512, 7, 7)
+
+
+def test_extractor_rejects_auto_device():
+    """Regression: ExtractorConfig('auto') must fail loudly, not at the
+    first tensor.to('auto') call deep inside __getitem__."""
+    from pie_pytorch.features.vgg16_features import (
+        ExtractorConfig,
+        VGG16FeatureExtractor,
+    )
+
+    with pytest.raises(ValueError, match="concrete torch device"):
+        VGG16FeatureExtractor(ExtractorConfig(device="auto"))

@@ -116,6 +116,29 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — VGG extractor "auto" device + CPU-bound VGG net (caught mid-Colab-run)
+- After fixing the dataclass field name, the intent run on Colab
+  crashed again in `IntentFeatureDataset.__getitem__`:
+      RuntimeError: Expected one of cpu, cuda, ipu, xpu, ... at start
+      of device string: auto
+- Two layered bugs:
+    1. `_build_intent` forwarded the training config's `device` string
+       ("auto") straight into `ExtractorConfig`. That's a Trainer-level
+       shorthand; `ExtractorConfig.device` is used as a raw torch device.
+    2. The VGG16 `_net` was never moved to any device. Even once we
+       resolved "auto", CPU weights + GPU inputs would still mismatch.
+- Fixes:
+    - `VGG16FeatureExtractor.__init__` now raises `ValueError` if
+      `cfg.device == "auto"` and moves `_net` to `self.cfg.device`.
+    - `pie_pytorch/cli/train.py::_resolve_device` turns "auto" into a
+      concrete string (cuda > mps > cpu) before constructing the
+      extractor.
+- Regression test `test_extractor_rejects_auto_device` covers the
+  guard. Full suite now 166 passed.
+- Lesson: each module that reads a `device` string should either
+  accept only concrete devices (and enforce it), or resolve "auto"
+  itself. Don't forward "auto" silently between layers.
+
 ### 2026-04-17 — intent YAML vs dataclass field name mismatch (caught mid-Colab-run)
 - `intent_colab.yaml` has `model.observe_length` but
   `IntentModelConfig` declared `sequence_length` (a dead field, never

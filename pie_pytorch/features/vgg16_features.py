@@ -90,7 +90,7 @@ def preprocess_image(pil_img, mode: Preprocess = "torchvision") -> torch.Tensor:
 @dataclass
 class ExtractorConfig:
     preprocess: Preprocess = "torchvision"
-    device: str = "cpu"  # overridable; Trainer chooses at runtime
+    device: str = "cpu"  # concrete torch-device string; callers must resolve "auto" first
 
 
 class VGG16FeatureExtractor(nn.Module):
@@ -104,11 +104,19 @@ class VGG16FeatureExtractor(nn.Module):
     def __init__(self, cfg: ExtractorConfig | None = None):
         super().__init__()
         self.cfg = cfg or ExtractorConfig()
+        if self.cfg.device == "auto":
+            raise ValueError(
+                "ExtractorConfig.device must be a concrete torch device "
+                "(cpu/cuda/mps); resolve 'auto' before constructing "
+                "VGG16FeatureExtractor."
+            )
         weights = VGG16_Weights.IMAGENET1K_V1
         self._net = vgg16(weights=weights).features  # conv stack only
         for p in self._net.parameters():
             p.requires_grad = False
         self._net.eval()
+        # Move weights to the same device as the inputs will be on.
+        self._net.to(self.cfg.device)
 
     @property
     def feature_shape(self) -> tuple[int, int, int]:

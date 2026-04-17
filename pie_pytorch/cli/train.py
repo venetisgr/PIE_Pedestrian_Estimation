@@ -132,6 +132,17 @@ def _apply_subset(raw: dict, subset_cfg: dict | None) -> dict:
     return sc.apply(raw)
 
 
+def _resolve_device(requested: str) -> str:
+    """Turn 'auto' into a concrete torch device string."""
+    if requested != "auto":
+        return requested
+    if torch.cuda.is_available():
+        return "cuda"
+    if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+        return "mps"
+    return "cpu"
+
+
 def _build_intent(cfg: dict) -> tuple[DataLoader, DataLoader, torch.nn.Module, Any, Any]:
     pie_path = os.environ[cfg["data"]["pie_path_env"]]
     imdb = PIE(data_path=pie_path)
@@ -147,7 +158,8 @@ def _build_intent(cfg: dict) -> tuple[DataLoader, DataLoader, torch.nn.Module, A
     val_raw = _apply_subset(val_raw, cfg["data"].get("subset"))
 
     feature_cache = VideoShardCache(cfg["data"]["feature_cache_dir"])
-    extractor = VGG16FeatureExtractor(ExtractorConfig(device=cfg["training"].get("device", "auto")))
+    device = _resolve_device(cfg["training"].get("device", "auto"))
+    extractor = VGG16FeatureExtractor(ExtractorConfig(device=device))
 
     feat_cfg = IntentFeatureDatasetConfig(
         observe_length=cfg["model"]["observe_length"],
