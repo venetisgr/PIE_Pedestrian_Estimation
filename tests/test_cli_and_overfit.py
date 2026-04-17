@@ -42,6 +42,28 @@ def test_packaged_configs_load_cleanly(cfg_name, monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "cfg_name",
+    ["intent_colab.yaml", "trajectory_colab.yaml", "speed_colab.yaml"],
+)
+def test_packaged_configs_instantiate_model_config(cfg_name, monkeypatch):
+    """Regression: catch YAML `model:` keys that don't exist on the
+    dataclass they feed (e.g. `observe_length` vs `sequence_length`)."""
+    from pathlib import Path
+
+    from pie_pytorch.models.intent import IntentModelConfig
+    from pie_pytorch.models.trajectory import AttnEncDecConfig
+
+    monkeypatch.setenv("PIE_PATH", "/tmp/__fake_pie_path__")
+    cfg_path = Path(__file__).resolve().parents[1] / "pie_pytorch" / "configs" / cfg_name
+    cfg = train_cli.load_config(str(cfg_path))
+
+    if cfg["task"] == "intent":
+        IntentModelConfig(**cfg["model"])
+    else:  # trajectory / speed share AttnEncDecConfig
+        AttnEncDecConfig(**cfg["model"])
+
+
 # ---------------------------------------------------------------------------
 # Config loader
 # ---------------------------------------------------------------------------

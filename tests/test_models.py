@@ -68,7 +68,7 @@ def test_intent_param_count_is_reasonable():
 
 def test_intent_config_overrides_take_effect():
     cfg = IntentModelConfig(
-        sequence_length=10, convlstm_filters=32, lstm_hidden=64, decoder_input_size=4
+        observe_length=10, convlstm_filters=32, lstm_hidden=64, decoder_input_size=4
     )
     model = IntentConvLSTMEncDec(cfg)
     enc = torch.randn(1, 10, 512, 7, 7)

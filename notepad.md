@@ -116,6 +116,22 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — intent YAML vs dataclass field name mismatch (caught mid-Colab-run)
+- `intent_colab.yaml` has `model.observe_length` but
+  `IntentModelConfig` declared `sequence_length` (a dead field, never
+  used inside the model forward). `IntentModelConfig(**cfg["model"])`
+  raised `TypeError: got an unexpected keyword argument
+  'observe_length'`. Renamed the dataclass field to `observe_length`
+  for consistency with `IntentConfig` / `TrajectoryConfig` /
+  `SpeedConfig`.
+- Unit tests that only covered the dataclass in isolation missed it.
+  Added `test_packaged_configs_instantiate_model_config`: parameterized
+  over all three Colab configs, actually calls `IntentModelConfig(
+  **cfg["model"])` / `AttnEncDecConfig(**cfg["model"])` so the
+  field-name contract between YAML and code is verified in CI.
+- Lesson: "YAML loads" is not the same as "YAML produces a valid
+  kwarg-set for the class it's meant to feed". Assert both.
+
 ### 2026-04-17 — PyYAML shorthand-scientific footgun (caught mid-Colab-run)
 - `--override training.lr=5e-3` on Colab crashed because
   `yaml.safe_load("5e-3")` returns the string `"5e-3"`, not `0.005`.

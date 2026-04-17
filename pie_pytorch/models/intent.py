@@ -26,7 +26,7 @@ from .layers import ConvLSTM2D, KerasLSTM
 
 @dataclass
 class IntentModelConfig:
-    sequence_length: int = 15          # shared enc/dec length (observe_length)
+    observe_length: int = 15           # shared enc/dec length
     feature_channels: int = 512        # VGG16 feature channels
     feature_hw: int = 7                # VGG16 feature spatial size (224/32)
     convlstm_filters: int = 64
