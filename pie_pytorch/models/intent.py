@@ -31,11 +31,19 @@ class IntentModelConfig:
     feature_hw: int = 7                # VGG16 feature spatial size (224/32)
     convlstm_filters: int = 64
     convlstm_kernel: int = 2
+    convlstm_padding: str = "valid"    # Keras default for ConvLSTM2D; "same" for full spatial preserve
     lstm_hidden: int = 128
     lstm_dropout: float = 0.4
     lstm_recurrent_dropout: float = 0.2
     decoder_input_size: int = 4        # bbox has 4 coords
     output_size: int = 1               # binary crossing probability
+
+    def convlstm_out_hw(self) -> int:
+        """Spatial size of the ConvLSTM output given padding + kernel."""
+        if self.convlstm_padding == "same":
+            return self.feature_hw
+        # Keras "valid" with stride 1: out = in - k + 1
+        return self.feature_hw - self.convlstm_kernel + 1
 
 
 class IntentConvLSTMEncDec(nn.Module):
@@ -68,8 +76,9 @@ class IntentConvLSTMEncDec(nn.Module):
             kernel_size=self.cfg.convlstm_kernel,
             activation="tanh",
             return_sequences=False,
+            padding=self.cfg.convlstm_padding,
         )
-        hw = self.cfg.feature_hw
+        hw = self.cfg.convlstm_out_hw()
         flat_size = self.cfg.convlstm_filters * hw * hw
 
         self.decoder = KerasLSTM(

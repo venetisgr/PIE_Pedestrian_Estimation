@@ -43,10 +43,12 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 - [x] **Validation 3**: 158 total passing. Trainer overfits toy linear regression (val MSE < 0.05 in 60 ep). CLI-run speed + trajectory overfit on synthetic PIE-shaped data (loss drops >10%). Checkpoints land on disk, `--no-wandb` CLI flag works.
 
 ## Phase 4 — Parity vs. TF reference
-- [ ] 4.1 Script to dump Keras `.h5` weights → `.npz`
-- [ ] 4.2 Run Keras pretrained inference on 100-track fixture
-- [ ] 4.3 Run PyTorch port on same fixture, compare
-- [ ] **Validation 4**: per-layer diff < 1e-6 (if weights are ported); intent acc within ±1 pp; traj/speed MSE within ±5%
+- [x] 4.1 `pie_pytorch/io/keras_to_torch.py` — Keras .h5 → PyTorch state dict for all 3 models. Auto-sizes the config from the .h5 shapes. Found + fixed 2 parity bugs: valid padding default, hardcoded same on the recurrent conv.
+- [x] 4.1 `pie_pytorch/cli/convert.py` — ``pie-convert --task --h5 --out`` CLI that writes a portable ``.safetensors`` + ``.config.json`` beside it.
+- [x] 4.1 ``pie-eval --keras-h5 path/to/model.h5`` — load paper weights directly and evaluate on any split.
+- [ ] 4.2 End-to-end paper-weights evaluation on PIE test split (set03). Requires downloading set03 videos + annotations; run on Colab.
+- [ ] 4.3 Pluggable-backbone registry (for tracks 3-7).
+- [ ] **Validation 4**: `pie-eval --keras-h5 ... --split test` on set03 should yield intent acc ≈ 0.79, F1 ≈ 0.87 (paper numbers).
 
 ## Phase 5 — Local + Colab UX
 - [ ] 5.1 `README.md` updates (local install, Colab section, subset flags)
@@ -63,14 +65,24 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Phase 0-3 complete + downloader + Colab data validation. Ready for a
-  real Colab training run on set05.
+- Phase 0-3 + downloader + Colab 3-model validation + Phase 4.1 weight
+  port all shipped. 178 tests green.
+
+## Experiment bucket list (5–7 tracks on the same eval split)
+| Track | Backbone | Backbone state | Head |
+|---|---|---|---|
+| 1 | VGG16 | frozen | paper weights (Phase 4.1 ✅) |
+| 2 | VGG16 | frozen | scratch |
+| 3 | ResNet50 | frozen | scratch |
+| 4 | DINOv2 ViT-B/14 | frozen | scratch |
+| 5 | VGG16 | unfrozen | scratch |
+| 6 | ResNet50 | unfrozen | scratch |
+| 7 | DINOv2 ViT-B/14 | unfrozen | scratch |
 
 ## Next up
-- Colab: run `python -m pie_pytorch.cli.train --config
-  pie_pytorch/configs/trajectory_colab.yaml` end-to-end with W&B to
-  prove the full stack on real PIE data.
-- Phase 4 — Keras weight parity (intent acc on test split).
+- Phase 4.2 — pluggable backbone registry + configs for tracks 3-4.
+- Or: Colab eval of paper weights on set03 to get the reproducible
+  baseline number before any other work.
 
 ## Out-of-phase (Phase 1.6) — Asset downloader (2026-04-16)
 - [x] `pie_pytorch/data/downloader.py` with video + annotation sub-commands.

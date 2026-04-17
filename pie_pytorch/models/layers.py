@@ -235,20 +235,22 @@ class ConvLSTM2DCell(nn.Module):
         self.in_channels = in_channels
         self.out_channels = out_channels
 
-        # "same" padding is only supported on stride=1 convs (we use that).
-        pad = "same" if padding == "same" else padding
+        # Keras ConvLSTM2D uses the user-supplied `padding` for the input
+        # conv but hardcodes `padding='same'` for the recurrent conv (the
+        # hidden state must keep its spatial size across timesteps).
+        # "same" is only supported on stride=1 convs (which we use).
         self.conv_x = nn.Conv2d(
             in_channels,
             4 * out_channels,
             kernel_size=kernel_size,
-            padding=pad,
+            padding=padding,
             bias=True,
         )
         self.conv_h = nn.Conv2d(
             out_channels,
             4 * out_channels,
             kernel_size=kernel_size,
-            padding=pad,
+            padding="same",
             bias=False,
         )
 
@@ -325,8 +327,15 @@ class ConvLSTM2D(nn.Module):
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         B, T, C, H, W = x.shape
-        h = x.new_zeros(B, self.out_channels, H, W)
-        c = x.new_zeros(B, self.out_channels, H, W)
+        # Run one step of conv_x to discover the output spatial size — this
+        # handles both "same" (stays H, W) and "valid" (shrinks by k-1).
+        # The first real pass below will overwrite this forward compute.
+        with torch.no_grad():
+            out_hw = self.cell.conv_x(x[:, 0]).shape[-2:]
+        H_out, W_out = out_hw
+
+        h = x.new_zeros(B, self.out_channels, H_out, W_out)
+        c = x.new_zeros(B, self.out_channels, H_out, W_out)
 
         if self.training and self.dropout > 0:
             mask_x = x.new_empty(B, C, H, W).bernoulli_(1 - self.dropout) / (
@@ -335,7 +344,7 @@ class ConvLSTM2D(nn.Module):
         else:
             mask_x = None
         if self.training and self.recurrent_dropout > 0:
-            mask_h = x.new_empty(B, self.out_channels, H, W).bernoulli_(
+            mask_h = x.new_empty(B, self.out_channels, H_out, W_out).bernoulli_(
                 1 - self.recurrent_dropout
             ) / (1 - self.recurrent_dropout)
         else:

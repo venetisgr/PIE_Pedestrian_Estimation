@@ -59,9 +59,15 @@ class _RangeHandler(http.server.SimpleHTTPRequestHandler):
 
 @pytest.fixture
 def http_root(tmp_path_factory):
-    """A directory served over HTTP. Yields (root_path, base_url)."""
+    """A directory served over HTTP. Yields (root_path, base_url).
+
+    Restores the original CWD on teardown — SimpleHTTPRequestHandler
+    serves from ``os.getcwd()``, and leaking the chdir breaks every
+    later test that uses relative paths.
+    """
     root = tmp_path_factory.mktemp("httproot")
-    os.chdir(root)  # SimpleHTTPRequestHandler serves CWD
+    original_cwd = os.getcwd()
+    os.chdir(root)
 
     httpd = socketserver.ThreadingTCPServer(("127.0.0.1", 0), _RangeHandler)
     port = httpd.server_address[1]
@@ -72,6 +78,7 @@ def http_root(tmp_path_factory):
     finally:
         httpd.shutdown()
         httpd.server_close()
+        os.chdir(original_cwd)
 
 
 # ---------------------------------------------------------------------------

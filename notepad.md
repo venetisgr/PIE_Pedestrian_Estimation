@@ -116,6 +116,49 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — Phase 4.1: Keras ConvLSTM2D parity quirks
+Two parity bugs found by inspecting the paper .h5 files:
+
+1. **Keras ConvLSTM2D defaults to `padding='valid'`, not `'same'`**. With
+   kernel=2 and 7×7 VGG features, that means 6×6 output (not 7×7).
+   Flat = 64·6·6 = 2304; decoder LSTM input = 2308 = 2304 + 4 (bbox).
+   Fixed by adding `convlstm_padding: str` to `IntentModelConfig` and
+   computing `convlstm_out_hw()` for flat-size math.
+
+2. **Keras ConvLSTM2D hardcodes `padding='same'` on the recurrent
+   conv**, regardless of the user's `padding` setting. The input conv
+   can shrink spatial; the hidden conv must preserve it. My
+   implementation used the same padding for both, which only "worked"
+   because I'd been using same everywhere. Fixed by decoupling:
+   ``conv_x`` uses user-supplied padding, ``conv_h`` uses ``"same"``.
+   Also moved the initial-hidden allocation to the conv_x output
+   spatial size so both valid and same work.
+
+Weight map (intent, from `data/pie/intention/context_loc_pretrained/model.h5`):
+    conv_lst_m2d_1.kernel           (2,2,512,256)  -> encoder.cell.conv_x.weight (256,512,2,2)
+    conv_lst_m2d_1.recurrent_kernel (2,2,64,256)   -> encoder.cell.conv_h.weight (256,64,2,2)
+    conv_lst_m2d_1.bias             (256,)         -> encoder.cell.conv_x.bias
+    decoder_network.kernel          (2308,512)     -> decoder.cell.W_x.weight (512,2308)
+    decoder_network.recurrent_kernel(128,512)      -> decoder.cell.W_h.weight (512,128)
+    decoder_network.bias            (512,)         -> decoder.cell.W_x.bias
+    decoder_dense.kernel            (128,1)        -> head.weight (1,128)
+    decoder_dense.bias              (1,)           -> head.bias
+
+ConvLSTM kernel permute: Keras (kH, kW, C_in, 4*C_out) -> torch (4*C_out, C_in, kH, kW) via permute(3, 2, 0, 1). Dense kernels just transpose.
+
+Intent param count from the loaded .h5: **1 837 953**. Matches the
+paper (Keras model.summary would show the same).
+
+### 2026-04-17 — test_downloader http_root fixture leaked chdir
+`http_root` called `os.chdir(root)` without restoring. Every test after
+it ran with CWD in a tmp dir, so any test using relative paths (e.g.
+`test_keras_to_torch.py` skipping because `data/pie/...` looked
+missing) silently skipped under the full pytest run but passed in
+isolation. Fixed by saving/restoring CWD in the fixture teardown and
+by making `_skip_if_h5_missing` use absolute paths based on `__file__`.
+Lesson: fixtures that mutate process state (CWD, env vars, logging
+handlers) MUST restore in teardown.
+
 ### 2026-04-17 — BCELoss + AMP is unsafe (caught mid-Colab-run)
 - Intent training on Colab (T4, AMP auto-on for CUDA) crashed in the
   first step with:
