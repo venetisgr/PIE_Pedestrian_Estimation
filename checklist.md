@@ -25,12 +25,12 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 - [x] **Validation 1**: 78 passed, 1 deselected (slow VGG-weights test) — transforms parity (29), subset (10), datasets (8), features (8), scaffold (23). NumPy-writability warning fixed. Annotations download path TBD.
 
 ## Phase 2 — Model layer
-- [ ] 2.1 `ConvLSTM2DCell` / `ConvLSTM2D` (Keras-equivalent defaults)
-- [ ] 2.2 `TemporalAttention`, `ElementAttention`
-- [ ] 2.3 `IntentConvLSTMEncDec`
-- [ ] 2.4 `TrajectoryAttnEncDec`, `SpeedAttnEncDec`
-- [ ] 2.5 `torchinfo.summary` hookup
-- [ ] **Validation 2**: shape tests, param-count parity (±5%), grad finiteness, deterministic forward
+- [x] 2.1 `ConvLSTM2DCell` / `ConvLSTM2D` with Keras defaults (hard_sigmoid gates, unit_forget_bias, xavier/orthogonal init)
+- [x] 2.2 `TemporalAttention`, `ElementAttention`; `KerasLSTM` w/ configurable tanh/softsign
+- [x] 2.3 `IntentConvLSTMEncDec` (VGG features → ConvLSTM → RepeatVector+concat → KerasLSTM → sigmoid)
+- [x] 2.4 `AttnEncDec` shared class + `trajectory_model()` / `speed_model()` factories (TemporalAttention → KerasLSTM(softsign) → embed+dropout → ElementAttention → KerasLSTM(softsign) → Dense linear)
+- [ ] 2.5 `torchinfo.summary` hookup (deferred; param-count sanity covered by tests)
+- [x] **Validation 2**: 38 new tests, 133 total passing. Intent param count ~1.8M (Keras ref ~1.8M), batch-invariance within 1e-6, E2E Dataset→model smoke for trajectory.
 
 ## Phase 3 — Training / eval with W&B
 - [ ] 3.1 `trainer.py` (AMP, clipping, RMSprop, plateau, early stop)
@@ -62,11 +62,11 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Phase 0 + Phase 1 complete. Downloader shipped (videos + annotations).
-  Starting Phase 2 (models) next.
+- Phase 0-2 complete + downloader + Colab live validation.
+  Starting Phase 3 (training + W&B) next.
 
 ## Next up
-- Phase 2.1 — custom `ConvLSTM2D` matching Keras gate ordering and init.
+- Phase 3.1 — `trainer.py` with Keras-matched RMSprop, plateau LR, early stop, AMP.
 
 ## Out-of-phase (Phase 1.6) — Asset downloader (2026-04-16)
 - [x] `pie_pytorch/data/downloader.py` with video + annotation sub-commands.
