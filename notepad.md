@@ -116,6 +116,19 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — PyYAML shorthand-scientific footgun (caught mid-Colab-run)
+- `--override training.lr=5e-3` on Colab crashed because
+  `yaml.safe_load("5e-3")` returns the string `"5e-3"`, not `0.005`.
+  PyYAML's float resolver regex requires either a decimal point before
+  the exponent (`5.0e-3`) or a leading dot (`.5e-3`). Bare mantissa + `e-3`
+  is rejected.
+- Fix: when `yaml.safe_load` returns a string identical to the raw token,
+  attempt `int(raw)` then `float(raw)` before committing the value.
+  Regression test `test_override_coerces_shorthand_scientific` covers
+  both `lr=5e-3` (float) and `epochs=30` (int).
+- Lesson #2 for config tests: YAML quirks hit both config *files* and
+  command-line override tokens. Test both paths.
+
 ### 2026-04-17 — YAML `Infinity` footgun (caught mid-Colab-run)
 - All three Colab configs had `height_rng: [0, Infinity]`. YAML does
   NOT treat `Infinity` as special; it parses as the **string**

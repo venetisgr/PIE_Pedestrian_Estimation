@@ -80,6 +80,15 @@ def _apply_override(cfg: dict, assignment: str) -> dict:
         value = yaml.safe_load(raw)
     except yaml.YAMLError:
         value = raw
+    # PyYAML's float regex rejects shorthand scientific notation like "5e-3"
+    # (it wants "5.0e-3"). Coerce stringy numerics so CLI overrides are forgiving.
+    if isinstance(value, str) and value == raw:
+        for converter in (int, float):
+            try:
+                value = converter(raw)
+                break
+            except ValueError:
+                continue
     parts = key.split(".")
     d = cfg
     for p in parts[:-1]:

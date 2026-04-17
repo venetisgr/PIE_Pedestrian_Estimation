@@ -81,6 +81,29 @@ training: {epochs: 10, lr: 0.001, batch_size: 4}
     assert cfg["training"]["epochs"] == 2
 
 
+def test_override_coerces_shorthand_scientific(tmp_path, monkeypatch):
+    """Regression: PyYAML parses '5e-3' as a string; the override parser
+    must coerce it to float so numeric overrides just work."""
+    monkeypatch.setenv("PIE_PATH", "/fake/pie")
+    cfg_path = tmp_path / "cfg.yaml"
+    cfg_path.write_text(
+        """
+task: speed
+data: {pie_path_env: PIE_PATH, train_split: val, val_split: val, data_opts: {}, model_opts: {observe_length: 15, predict_length: 45, enc_input_type: [obd_speed], dec_input_type: [], prediction_type: [obd_speed], normalize_bbox: true}}
+model: {observe_length: 14, predict_length: 45, enc_feature_size: 1, dec_feature_size: 0, prediction_size: 1}
+training: {epochs: 1, lr: 1e-5, batch_size: 4}
+"""
+    )
+    cfg = train_cli.load_config(
+        str(cfg_path),
+        overrides=["training.lr=5e-3", "training.epochs=30"],
+    )
+    assert cfg["training"]["lr"] == pytest.approx(5e-3)
+    assert isinstance(cfg["training"]["lr"], float)
+    assert cfg["training"]["epochs"] == 30
+    assert isinstance(cfg["training"]["epochs"], int)
+
+
 def test_load_config_unknown_task(tmp_path):
     cfg_path = tmp_path / "cfg.yaml"
     cfg_path.write_text("task: bogus\n")
