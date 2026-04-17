@@ -33,13 +33,14 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 - [x] **Validation 2**: 38 new tests, 133 total passing. Intent param count ~1.8M (Keras ref ~1.8M), batch-invariance within 1e-6, E2E Dataset→model smoke for trajectory.
 
 ## Phase 3 — Training / eval with W&B
-- [ ] 3.1 `trainer.py` (AMP, clipping, RMSprop, plateau, early stop)
-- [ ] 3.2 `checkpoint.py` (safetensors, resume, top-K)
-- [ ] 3.3 `metrics.py` (accuracy, F1, MSE, C-MSE)
-- [ ] 3.4 W&B integration (+ `--no-wandb` flag)
-- [ ] 3.5 `cli/train.py`
-- [ ] 3.6 `cli/eval.py`
-- [ ] **Validation 3**: CPU smoke, overfit 32-batch, W&B run visible, reload-identity, resume works
+- [x] 3.1 `trainer.py` (AMP, grad clipping, RMSprop α=0.9 ε=1e-7, plateau, early stop)
+- [x] 3.2 `checkpoint.py` (safetensors + state.pt, top-K, best/latest pointers, Drive-safe fallback)
+- [x] 3.3 `metrics.py` (accuracy, f1, mse, center_mse + `MetricsAccumulator`)
+- [x] 3.4 W&B integration — soft-dep, `--no-wandb` flag, project/run_name in config
+- [x] 3.5 `cli/train.py` — YAML-driven, `--override key=value`, env-var expansion
+- [x] 3.6 `cli/eval.py` — resolves best/latest/epoch dir and runs on any split
+- [x] YAML configs: `intent_colab.yaml`, `trajectory_colab.yaml`, `speed_colab.yaml`
+- [x] **Validation 3**: 158 total passing. Trainer overfits toy linear regression (val MSE < 0.05 in 60 ep). CLI-run speed + trajectory overfit on synthetic PIE-shaped data (loss drops >10%). Checkpoints land on disk, `--no-wandb` CLI flag works.
 
 ## Phase 4 — Parity vs. TF reference
 - [ ] 4.1 Script to dump Keras `.h5` weights → `.npz`
@@ -62,11 +63,14 @@ Legend: `[ ]` pending · `[~]` in progress · `[x]` done · `[!]` blocked (see n
 ---
 
 ## Currently in progress
-- Phase 0-2 complete + downloader + Colab live validation.
-  Starting Phase 3 (training + W&B) next.
+- Phase 0-3 complete + downloader + Colab data validation. Ready for a
+  real Colab training run on set05.
 
 ## Next up
-- Phase 3.1 — `trainer.py` with Keras-matched RMSprop, plateau LR, early stop, AMP.
+- Colab: run `python -m pie_pytorch.cli.train --config
+  pie_pytorch/configs/trajectory_colab.yaml` end-to-end with W&B to
+  prove the full stack on real PIE data.
+- Phase 4 — Keras weight parity (intent acc on test split).
 
 ## Out-of-phase (Phase 1.6) — Asset downloader (2026-04-16)
 - [x] `pie_pytorch/data/downloader.py` with video + annotation sub-commands.

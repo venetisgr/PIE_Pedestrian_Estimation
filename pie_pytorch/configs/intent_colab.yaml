@@ -1,0 +1,78 @@
+# Intent model - Colab-sized training on a small subset.
+#
+# Assumes you followed docs/colab_checklist.md and have set05 videos +
+# annotations under $PIE_PATH. This config uses only set05 (val split)
+# for both train and val so the run fits in Colab-free disk/time budgets.
+
+task: intent
+
+data:
+  # $PIE_PATH is resolved at runtime via os.environ.
+  pie_path_env: PIE_PATH
+  feature_cache_dir: "${PIE_PATH}/data/features/vgg16_torchvision"
+  train_split: val     # set05 only (workaround for Colab subset)
+  val_split: val
+  subset:
+    set_ids: [set05]
+    fraction: null
+    max_tracks: null
+    seed: 0
+  data_opts:
+    fstride: 1
+    sample_type: all
+    height_rng: [0, Infinity]
+    squarify_ratio: 0
+    data_split_type: default
+    seq_type: intention
+    min_track_size: 0
+    max_size_observe: 15
+    max_size_predict: 5
+    seq_overlap_rate: 0.5
+    balance: true
+    crop_type: context
+    crop_mode: pad_resize
+    encoder_input_type: []
+    decoder_input_type: [bbox]
+    output_type: [intention_binary]
+    random_params: {ratios: null, val_data: true, regen_data: false}
+    kfold_params: {num_folds: 5, fold: 1}
+  balance_train: true
+
+model:
+  observe_length: 15
+  feature_channels: 512
+  feature_hw: 7
+  convlstm_filters: 64
+  convlstm_kernel: 2
+  lstm_hidden: 128
+  lstm_dropout: 0.4
+  lstm_recurrent_dropout: 0.2
+  decoder_input_size: 4
+  output_size: 1
+
+training:
+  epochs: 20          # paper uses 400; set low for a Colab smoke-run
+  lr: 1.0e-5
+  weight_decay: 0.0
+  rmsprop_alpha: 0.9
+  rmsprop_eps: 1.0e-7
+  clip_grad_norm: 1.0
+  use_amp: null       # auto: cuda -> on, cpu -> off
+  device: auto
+  batch_size: 32
+  num_workers: 0      # IntentFeatureDataset uses a single-video LRU cache
+  monitor: val_loss
+  mode: min
+  plateau_factor: 0.5
+  plateau_patience: 5
+  plateau_min_lr: 1.0e-7
+  early_stop_patience: 10
+  early_stop_min_delta: 1.0e-4
+  checkpoint_dir: "${PIE_PATH}/checkpoints/intent_colab"
+  keep_top_k: 3
+  log_every_n_steps: 25
+
+wandb:
+  enabled: true
+  project: pie_pytorch
+  run_name: intent_colab

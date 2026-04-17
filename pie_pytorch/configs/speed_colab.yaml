@@ -1,0 +1,70 @@
+# Speed model - Colab-sized training.
+# obd_speed in -> obd_speed out, no exogenous decoder input.
+
+task: speed
+
+data:
+  pie_path_env: PIE_PATH
+  train_split: val
+  val_split: val
+  subset:
+    set_ids: [set05]
+    fraction: null
+    max_tracks: null
+    seed: 0
+  data_opts:
+    fstride: 1
+    sample_type: all
+    height_rng: [0, Infinity]
+    squarify_ratio: 0
+    data_split_type: default
+    seq_type: trajectory
+    min_track_size: 61
+    random_params: {ratios: null, val_data: true, regen_data: false}
+    kfold_params: {num_folds: 5, fold: 1}
+  model_opts:
+    normalize_bbox: true
+    track_overlap: 0.5
+    observe_length: 15
+    predict_length: 45
+    enc_input_type: [obd_speed]
+    dec_input_type: []
+    prediction_type: [obd_speed]
+
+model:
+  observe_length: 14
+  predict_length: 45
+  enc_feature_size: 1
+  dec_feature_size: 0
+  prediction_size: 1
+  hidden_size: 256
+  embed_size: 64
+  embed_dropout: 0.0
+  activation: softsign
+
+training:
+  epochs: 30
+  lr: 1.0e-5
+  weight_decay: 0.0
+  rmsprop_alpha: 0.9
+  rmsprop_eps: 1.0e-7
+  clip_grad_norm: 1.0
+  use_amp: null
+  device: auto
+  batch_size: 128
+  num_workers: 2
+  monitor: val_loss
+  mode: min
+  plateau_factor: 0.5
+  plateau_patience: 5
+  plateau_min_lr: 1.0e-7
+  early_stop_patience: 10
+  early_stop_min_delta: 1.0e-4
+  checkpoint_dir: "${PIE_PATH}/checkpoints/speed_colab"
+  keep_top_k: 3
+  log_every_n_steps: 25
+
+wandb:
+  enabled: true
+  project: pie_pytorch
+  run_name: speed_colab
