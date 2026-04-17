@@ -116,6 +116,33 @@ Those are our **ground-truth reference** for Phase 4 parity.
 
 ## Running list of mistakes / fixups (add as they happen)
 
+### 2026-04-17 — Colab live validation (user-run)
+- Full pipeline validated on a Colab T4: 95 pytest passes, annotations
+  downloaded + parsed, set05 videos downloaded (~2 GB), frames
+  extracted, Dataset classes return real-shaped tensors on real PIE
+  tracks.
+- **set05 is in the val split, not test.** Paper's fixed split:
+  train=set01+02+04, val=set05+06, test=set03. Filtering the `test`
+  split by `set05` correctly yields 0 tracks (not a bug — by design).
+  Add a clearer error/warning if someone filters to an empty set.
+- **PIE positional-arg footgun**: `PIE("/path/to/data")` sets
+  `regen_database=True` and leaves `data_path=''` because the vendored
+  `__init__` signature is `PIE(regen_database=False, data_path='')`.
+  Always call `PIE(data_path="...")` as a kwarg. Consider adding a
+  wrapper helper in `pie_pytorch.data.__init__` (e.g. `load_pie(path)`)
+  so users can't miss this.
+- **Don't clone code into Drive.** Drive's filesystem is slow and
+  permission-quirky for git operations. Clone to `/content/` (fast
+  ephemeral) and keep only the dataset on Drive. Documented in the
+  Colab checklist.
+- Subset histogram for real val split matched expectations: set05=16,
+  set06=227 pedestrians. 16 tracks → 132 windows at obs=15 / overlap=0.5.
+  Sample ped_id `5_1_1731` and label `1.0` (crossing) round-tripped
+  through `IntentRawDataset`.
+- Frame extraction for set05 (`PIE.extract_and_save_images('annotated')`)
+  finished in the low-minutes range; progress bar rounds down so it
+  shows 99.97% at completion. Cosmetic only.
+
 ### 2026-04-16 — Annotations layout surprise (self-caught via live run)
 - Initial `download_annotations` assumed the tarball had three top-level
   dirs (`annotations/`, `annotations_attributes/`, `annotations_vehicle/`)
