@@ -104,6 +104,13 @@ def _parse_args(argv=None):
         help="Path to a paper Keras .h5 checkpoint. Converted on the fly.",
     )
     p.add_argument("--split", default=None, help="Override data.val_split for this run.")
+    p.add_argument(
+        "--override",
+        action="append",
+        default=[],
+        help="dotted.key=value assignment (repeatable). Applied after YAML load, "
+             "before run(). Same semantics as pie-train --override.",
+    )
     p.add_argument("--log-level", default="INFO")
     return p.parse_args(argv)
 
@@ -114,7 +121,7 @@ def main(argv=None) -> int:
         level=getattr(logging, args.log_level.upper(), logging.INFO),
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
-    cfg = load_config(args.config)
+    cfg = load_config(args.config, overrides=args.override)
     results = run(
         cfg,
         checkpoint=args.checkpoint,
