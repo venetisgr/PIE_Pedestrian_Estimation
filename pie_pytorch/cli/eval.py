@@ -78,8 +78,13 @@ def run(
     model = model.to(device).eval()
     acc = MetricsAccumulator()
     running_loss, running_n = 0.0, 0
+    try:
+        from tqdm.auto import tqdm as _tqdm
+        loader_iter = _tqdm(val_loader, desc=f"eval[{cfg['task']}]", unit="batch")
+    except ImportError:
+        loader_iter = val_loader
     with torch.no_grad():
-        for batch in val_loader:
+        for batch in loader_iter:
             batch = {k: (v.to(device) if isinstance(v, torch.Tensor) else v)
                      for k, v in batch.items()}
             preds, targets = forward_fn(model, batch)
