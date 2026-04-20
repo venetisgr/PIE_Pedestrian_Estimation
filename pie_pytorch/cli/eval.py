@@ -61,9 +61,35 @@ def run(
         if cfg["task"] == "intent":
             paper_model, _ = load_intent(keras_h5)
         else:
-            paper_model, _ = load_attn_encdec(keras_h5, task=cfg["task"])
-        model.load_state_dict(paper_model.state_dict())
+            paper_model, paper_cfg = load_attn_encdec(keras_h5, task=cfg["task"])
+        # Use the paper model directly. load_state_dict on the cfg-built
+        # model fails when dims differ (e.g., speed: paper has
+        # dec_feature_size=1 with zero-filled decoder input, our scratch
+        # config uses dec_feature_size=0).
+        model = paper_model
         logger.info("loaded paper weights from %s", keras_h5)
+
+        # Bridge: our Dataset may emit a smaller dec_input than the paper
+        # model expects. Zero-pad on the fly so the forward call works.
+        if cfg["task"] in ("trajectory", "speed"):
+            expected_dec = paper_cfg.dec_feature_size
+            _orig_forward = forward_fn
+
+            def _padded_forward(m, batch):
+                enc = batch["enc_input"]
+                dec = batch["dec_input"]
+                if dec.shape[-1] < expected_dec:
+                    pad = torch.zeros(
+                        *dec.shape[:-1],
+                        expected_dec - dec.shape[-1],
+                        device=dec.device,
+                        dtype=dec.dtype,
+                    )
+                    dec = torch.cat([dec, pad], dim=-1)
+                out = m(enc, dec)
+                return out, batch["target"]
+
+            forward_fn = _padded_forward
     else:
         ckpt_path = Path(checkpoint)
         if not ckpt_path.is_absolute():
